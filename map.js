@@ -19,6 +19,8 @@ let selectedStationId = null;
 
 // Load data when map is ready
 map.on('load', async () => {
+
+  map.addControl(new mapboxgl.NavigationControl());
   // Initialize the interaction system
   const interactions = MapInteractions.init(map);
 
@@ -44,7 +46,7 @@ map.on('load', async () => {
     paint: {
       'fill-color': '#fff',
       'fill-opacity': 0.1,
-      'fill-outline-color': '#FF33CC'
+      'fill-outline-color': '#6666CC'
     },
     layout: {
       visibility: 'visible'
@@ -58,7 +60,8 @@ map.on('load', async () => {
       type: 'FeatureCollection',
       features: landsData.elements.map(el => ({
         type: 'Feature',
-        properties: { id: el.id, ...el.tags },
+        id: el.id, // <-- Add this
+        properties: { ...el.tags },
         geometry: {
           type: 'Polygon',
           coordinates: [el.geometry?.map(node => [node.lon, node.lat])]
@@ -75,11 +78,11 @@ map.on('load', async () => {
       'fill-color': [
         'case',
         ['boolean', ['feature-state', 'selected'], false],
-        '#FFD700', // Highlight color (gold/yellow)
-        '#FF33CC'  // Default color
+        '#66FF99', // Highlight color (gold/yellow)
+        '#6666CC'  // Default color
       ],
       'fill-opacity': 0.4,
-      'fill-outline-color': '#FF33CC'
+      'fill-outline-color': '#6666CC'
     }
   });
 
@@ -90,7 +93,8 @@ map.on('load', async () => {
       type: 'FeatureCollection',
       features: stationsData.elements.map(el => ({
         type: 'Feature',
-        properties: { id: el.id, name: el.tags?.name || 'Unnamed', ...el.tags },
+        id: el.id, // <-- Add this
+        properties: { name: el.tags?.name || 'Unnamed', ...el.tags },
         geometry: {
           type: 'Point',
           coordinates: [el.lon, el.lat]
@@ -98,6 +102,7 @@ map.on('load', async () => {
       }))
     }
   });
+
   map.addLayer({
     id: 'railway-stations-circle',
     type: 'circle',
@@ -107,8 +112,8 @@ map.on('load', async () => {
       'circle-color': [
         'case',
         ['boolean', ['feature-state', 'selected'], false],
-        '#FFD700', // Highlight color (gold/yellow)
-        '#6666CC'  // Default color
+        '#66FF99', // Highlight color (gold/yellow)
+        '#FF725A'  // Default color
       ],
       'circle-radius': 6,
       'circle-stroke-width': 2,

@@ -42,85 +42,29 @@ const SimpleIsochrone = {
   
   getSidebarHTML() {
     return `
+      <div class="isochrone-branding">
+        <span class="isochrone-title">Network Rail Site Fit</span>
+        <img src="00-data/assets/DT_Logo.png" alt="DT Logo" class="isochrone-logo" />
+      </div>
       <div class="isochrone-container">
         <div class="isochrone-controls">
-          <h3>Walking Distance</h3>
-          
           <div class="duration-display">
             <span>Walking time: <strong id="duration-value">15 minutes</strong></span>
           </div>
-          
           <div class="slider-container">
             <span>5m</span>
             <input type="range" id="duration-slider" min="5" max="30" step="5" value="15">
             <span>30m</span>
           </div>
         </div>
-        
+        <div id="isochrone-area" class="area-message"></div>
         <div id="isochrone-status" class="status-message">
-          Click on a feature to see walking distance
+          Click on a plot to get the plot score.
         </div>
       </div>
-      
-      <style>
-        .isochrone-container {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          padding: 10px 0;
-        }
-        
-        .isochrone-controls {
-          margin-bottom: 20px;
-        }
-        
-        .isochrone-controls h3 {
-          margin-top: 0;
-          margin-bottom: 15px;
-          color: #333;
-        }
-        
-        .duration-display {
-          margin-bottom: 10px;
-        }
-        
-        .slider-container {
-          display: flex;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-        
-        .slider-container span {
-          flex: 0 0 30px;
-          color: #666;
-        }
-        
-        .slider-container input {
-          flex: 1;
-          margin: 0 10px;
-        }
-        
-        .status-message {
-          color: #666;
-          font-style: italic;
-          padding: 15px 0;
-          border-top: 1px solid #eee;
-        }
-        
-        /* Sidebar positioning */
-        .sidebar {
-          position: absolute;
-          top: 0;
-          right: 0;
-          width: 320px;
-          background: white;
-          box-shadow: 0 0 10px rgba(0,0,0,0.1);
-          padding: 15px;
-          overflow-y: auto;
-          max-height: 100vh;
-          z-index: 1000;
-        }
-      </style>
     `;
   },
+
   
   setupMapLayers() {
     this.map.addSource('iso', {
@@ -134,12 +78,24 @@ const SimpleIsochrone = {
       source: 'iso',
       layout: {},
       paint: {
-        'fill-color': '#6666CC',
-        'fill-opacity': 0.3
+        'fill-color': '#FF725A',
+        'fill-opacity': 0.3,
+      }
+    });
+
+    this.map.addLayer({
+      id: 'isoLayer-outline',
+      type: 'line',
+      source: 'iso',
+      layout: {},
+      paint: {
+        'line-color': '#FF725A',
+        'line-width':2,
       }
     });
   },
   
+
   setupEventListeners() {
     const slider = document.getElementById('duration-slider');
     
@@ -153,37 +109,69 @@ const SimpleIsochrone = {
     });
   },
   
+
+  
   handleFeatureSelection(feature) {
     let coordinates;
-    
+
     if (feature.geometry.type === 'Point') {
       coordinates = feature.geometry.coordinates;
     } else if (feature.geometry.type === 'Polygon') {
       const polygonCoords = feature.geometry.coordinates[0];
       let sumLng = 0, sumLat = 0;
-      
+
       polygonCoords.forEach(coord => {
         sumLng += coord[0];
         sumLat += coord[1];
       });
-      
+
       coordinates = [
         sumLng / polygonCoords.length,
         sumLat / polygonCoords.length
       ];
     }
-    
+
     this.marker.setLngLat(coordinates).addTo(this.map);
-    
+
     const featureName = feature.properties.name || `Feature #${feature.properties.id}`;
     const statusElement = document.getElementById('isochrone-status');
     if (statusElement) {
       statusElement.textContent = `Selected: ${featureName}`;
     }
 
+    // Calculate area if not present
+    let area = feature.properties.area;
+    if (
+      (typeof area === 'undefined' || area === null || isNaN(area)) &&
+      feature.geometry.type === 'Polygon'
+    ) {
+      // Use Turf.js to calculate area in square meters
+      area = turf.area(feature);
+      // Optionally, you can set it back to the feature for future use:
+      // feature.properties.area = area;
+    }
+
+    // Debug: log the area
+    console.log('Calculated area (sqm):', area);
+
+  const areaElement = document.getElementById('isochrone-area');
+  if (areaElement) {
+    if (typeof area !== 'undefined' && area !== null && !isNaN(area)) {
+      let areaText = '';
+      if (area > 10000) {
+        areaText = `${Math.round(area / 10000)} ha`;
+      } else {
+        areaText = `${Math.round(area).toLocaleString()} m²`;
+      }
+      areaElement.innerHTML = `<strong>Area:</strong> ${areaText}`;
+    } else {
+      areaElement.innerHTML = '';
+      console.log('Area property is missing or invalid for this feature.');
+    }
+  }
+
     this.getIso();
   },
-  
   async getIso() {
     const lngLat = this.marker.getLngLat();
     const urlBase = 'https://api.mapbox.com/isochrone/v1/mapbox/';
@@ -416,7 +404,6 @@ const SimpleIsochrone = {
           <h2>Plot Analysis</h2>
           <p><strong>${zones.length}</strong> datazones within ${minutes} min walk</p>
         </div>
-        
         <div class="score-section">
           <h3>Plot Scores</h3>
           <div class="total-score">
@@ -442,110 +429,6 @@ const SimpleIsochrone = {
           </details>
         </div>
       </div>
-      
-      <style>
-        .isochrone-results {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          padding: 10px 0;
-        }
-        .summary-section {
-          margin-bottom: 20px;
-        }
-        .summary-section h2 {
-          margin-top: 0;
-          margin-bottom: 10px;
-          color: #333;
-        }
-        .score-section {
-          margin-bottom: 20px;
-        }
-        .score-section h3 {
-          margin-top: 0;
-          margin-bottom: 15px;
-          color: #333;
-        }
-        .total-score {
-          margin-bottom: 20px;
-          padding: 10px;
-          background-color: #f8f8f8;
-          border-radius: 8px;
-          border-left: 4px solid #6666CC;
-        }
-        .category-scores-header {
-          font-weight: 600;
-          margin-bottom: 10px;
-          color: #555;
-        }
-        .category-score {
-          margin-bottom: 12px;
-        }
-        .score-label {
-          font-weight: 500;
-          margin-bottom: 5px;
-        }
-        .score-bar-container {
-          height: 18px;
-          background-color: #f0f0f0;
-          border-radius: 12px;
-          overflow: hidden;
-          position: relative;
-        }
-        .score-bar {
-          height: 100%;
-          background-color: #6666CC;
-          border-radius: 12px;
-        }
-        .overall-score {
-          background-color: #6666CC;
-          background-size: 1rem 1rem;
-        }
-        .high-score {
-          background-color: #66FF99;
-        }
-        .medium-score {
-          background-color: #66FF99;
-        }
-        .low-score {
-          background-color: #FF725A;
-        }
-        .score-value {
-          position: absolute;
-          right: 10px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #333;
-          font-weight: bold;
-        }
-        .metrics-section {
-          border-top: 1px solid #eee;
-          padding-top: 15px;
-        }
-        details {
-          margin-bottom: 10px;
-        }
-        summary {
-          cursor: pointer;
-          font-weight: 500;
-          padding: 8px 0;
-        }
-        summary:hover {
-          color: #6666CC;
-        }
-        .category-details {
-          margin-left: 15px;
-          border-left: 2px solid #eee;
-          padding-left: 10px;
-        }
-        .metrics-list {
-          margin-left: 15px;
-          margin-top: 8px;
-          margin-bottom: 15px;
-        }
-        .metrics-list div {
-          margin-bottom: 5px;
-          font-size: 0.9em;
-        }
-      </style>
     `;
   },
   
