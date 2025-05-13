@@ -13,14 +13,18 @@ const map = new mapboxgl.Map({
   zoom: 12
 });
 
+// Track selected feature ids for each layer
+let selectedEmptyLandId = null;
+let selectedStationId = null;
+
 // Load data when map is ready
 map.on('load', async () => {
   // Initialize the interaction system
   const interactions = MapInteractions.init(map);
-  
+
   // Initialize the isochrone handler
   const isochrone = SimpleIsochrone.init(map);
-  
+
   // Fetch all data in parallel
   const [landsData, stationsData, datazonesData] = await Promise.all([
     fetch_empty_landsData(),
@@ -39,14 +43,14 @@ map.on('load', async () => {
     source: 'datazones',
     paint: {
       'fill-color': '#fff',
-      'fill-opacity': 0.3,
-      'fill-outline-color': '#FF7700'
+      'fill-opacity': 0.1,
+      'fill-outline-color': '#FF33CC'
     },
     layout: {
       visibility: 'visible'
     }
-  }); 
-  
+  });
+
   // Add empty lands layer
   map.addSource('empty-lands', {
     type: 'geojson',
@@ -67,12 +71,18 @@ map.on('load', async () => {
     type: 'fill',
     source: 'empty-lands',
     paint: {
-      'fill-color': '#FF9900',
-      'fill-opacity': 0.5,
-      'fill-outline-color': '#FF7700'
+      // Use feature-state for dynamic coloring
+      'fill-color': [
+        'case',
+        ['boolean', ['feature-state', 'selected'], false],
+        '#FFD700', // Highlight color (gold/yellow)
+        '#FF33CC'  // Default color
+      ],
+      'fill-opacity': 0.4,
+      'fill-outline-color': '#FF33CC'
     }
   });
-  
+
   // Add railway stations layer
   map.addSource('railway-stations', {
     type: 'geojson',
@@ -93,26 +103,58 @@ map.on('load', async () => {
     type: 'circle',
     source: 'railway-stations',
     paint: {
+      // Use feature-state for dynamic coloring
+      'circle-color': [
+        'case',
+        ['boolean', ['feature-state', 'selected'], false],
+        '#FFD700', // Highlight color (gold/yellow)
+        '#6666CC'  // Default color
+      ],
       'circle-radius': 6,
-      'circle-color': '#4264fb',
       'circle-stroke-width': 2,
       'circle-stroke-color': '#ffffff'
     }
   });
-  
+
   // Register click handlers for different layers with isochrone functionality
   interactions
     .registerClickHandler('empty-lands-fill', (e, feature, map) => {
       // Show popup and zoom
       MapInteractions.handlers.showPopupAndZoom(e, feature, map);
-      
+
+      // Highlight the selected empty land
+      if (selectedEmptyLandId !== null) {
+        map.setFeatureState(
+          { source: 'empty-lands', id: selectedEmptyLandId },
+          { selected: false }
+        );
+      }
+      selectedEmptyLandId = feature.id;
+      map.setFeatureState(
+        { source: 'empty-lands', id: selectedEmptyLandId },
+        { selected: true }
+      );
+
       // Generate isochrone for the selected feature
       isochrone.handleFeatureSelection(feature);
     })
     .registerClickHandler('railway-stations-circle', (e, feature, map) => {
       // Show popup and zoom
       MapInteractions.handlers.showPopupAndZoom(e, feature, map);
-      
+
+      // Highlight the selected railway station
+      if (selectedStationId !== null) {
+        map.setFeatureState(
+          { source: 'railway-stations', id: selectedStationId },
+          { selected: false }
+        );
+      }
+      selectedStationId = feature.id;
+      map.setFeatureState(
+        { source: 'railway-stations', id: selectedStationId },
+        { selected: true }
+      );
+
       // Generate isochrone for the selected feature
       isochrone.handleFeatureSelection(feature);
     });

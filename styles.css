@@ -22,7 +22,7 @@ body {
     background-color: rgba(255, 255, 255, 0.9);
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    width: 280px;
+    width: 25%;
     z-index: 1000; /* This ensures the sidebar appears above the map */
 }
 
@@ -81,7 +81,7 @@ input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 18px;
     height: 18px;
-    background: #5a3fc0;
+    background: #6666CC;
     border-radius: 50%;
     cursor: pointer;
 }
@@ -89,7 +89,7 @@ input[type="range"]::-webkit-slider-thumb {
 input[type="range"]::-moz-range-thumb {
     width: 18px;
     height: 18px;
-    background: #5a3fc0;
+    background: #6666CC;
     border-radius: 50%;
     cursor: pointer;
     border: none;

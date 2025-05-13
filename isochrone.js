@@ -1,102 +1,164 @@
 // Simple Isochrone Handler
 const SimpleIsochrone = {
-  // Default values
-  profile: 'walking', // Only walking mode
+  profile: 'walking',
   minutes: 15,
   marker: null,
-  datazonesWithinIsochrone: [], // Store datazones within current isochrone
+  datazonesWithinIsochrone: [],
   
-  // Initialize the handler
   init(map) {
     this.map = map;
+    this.marker = new mapboxgl.Marker({ color: '#6666CC' });
     
-    // Create a marker to show the query point
-    this.marker = new mapboxgl.Marker({
-      color: '#5a3fc0'
-    });
+    // Create and inject the sidebar HTML
+    this.createSidebar();
     
-    // Set up the map layers for isochrone
     if (map.loaded()) {
       this.setupMapLayers();
     } else {
-      map.on('load', () => {
-        this.setupMapLayers();
-      });
+      map.on('load', () => this.setupMapLayers());
     }
     
     this.setupEventListeners();
     return this;
   },
   
-  // Set up the map layers for isochrone
+  createSidebar() {
+    // Check if sidebar already exists
+    let sidebar = document.getElementById('isochrone-sidebar');
+    
+    if (!sidebar) {
+      // Create the sidebar element
+      sidebar = document.createElement('div');
+      sidebar.id = 'isochrone-sidebar';
+      sidebar.className = 'sidebar';
+      
+      // Set the HTML content - using the same style as the results HTML
+      sidebar.innerHTML = this.getSidebarHTML();
+      
+      // Append to the document body or a specific container
+      document.body.appendChild(sidebar);
+    }
+  },
+  
+  getSidebarHTML() {
+    return `
+      <div class="isochrone-container">
+        <div class="isochrone-controls">
+          <h3>Walking Distance</h3>
+          
+          <div class="duration-display">
+            <span>Walking time: <strong id="duration-value">15 minutes</strong></span>
+          </div>
+          
+          <div class="slider-container">
+            <span>5m</span>
+            <input type="range" id="duration-slider" min="5" max="30" step="5" value="15">
+            <span>30m</span>
+          </div>
+        </div>
+        
+        <div id="isochrone-status" class="status-message">
+          Click on a feature to see walking distance
+        </div>
+      </div>
+      
+      <style>
+        .isochrone-container {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          padding: 10px 0;
+        }
+        
+        .isochrone-controls {
+          margin-bottom: 20px;
+        }
+        
+        .isochrone-controls h3 {
+          margin-top: 0;
+          margin-bottom: 15px;
+          color: #333;
+        }
+        
+        .duration-display {
+          margin-bottom: 10px;
+        }
+        
+        .slider-container {
+          display: flex;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+        
+        .slider-container span {
+          flex: 0 0 30px;
+          color: #666;
+        }
+        
+        .slider-container input {
+          flex: 1;
+          margin: 0 10px;
+        }
+        
+        .status-message {
+          color: #666;
+          font-style: italic;
+          padding: 15px 0;
+          border-top: 1px solid #eee;
+        }
+        
+        /* Sidebar positioning */
+        .sidebar {
+          position: absolute;
+          top: 0;
+          right: 0;
+          width: 320px;
+          background: white;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          padding: 15px;
+          overflow-y: auto;
+          max-height: 100vh;
+          z-index: 1000;
+        }
+      </style>
+    `;
+  },
+  
   setupMapLayers() {
-    // Add isochrone source
     this.map.addSource('iso', {
       type: 'geojson',
-      data: {
-        type: 'FeatureCollection',
-        features: []
-      }
+      data: { type: 'FeatureCollection', features: [] }
     });
     
-    // Add isochrone layer
     this.map.addLayer({
       id: 'isoLayer',
       type: 'fill',
       source: 'iso',
       layout: {},
       paint: {
-        'fill-color': '#5a3fc0',
+        'fill-color': '#6666CC',
         'fill-opacity': 0.3
       }
     });
-    
-    // // Add a layer for highlighting datazones within isochrone
-    // this.map.addSource('datazones-within', {
-    //   type: 'geojson',
-    //   data: {
-    //     type: 'FeatureCollection',
-    //     features: []
-    //   }
-    // });
-    
-    // this.map.addLayer({
-    //   id: 'datazones-within-outline',
-    //   type: 'line',
-    //   source: 'datazones-within',
-    //   paint: {
-    //     'line-color': '#5a3fc0',
-    //     'line-width': 2
-    //   }
-    // });
   },
   
-  // Set up event listeners for the controls
   setupEventListeners() {
-    // Get the slider element
     const slider = document.getElementById('duration-slider');
     
-    // Add event listener for slider changes
     slider.addEventListener('input', (event) => {
       this.minutes = parseInt(event.target.value);
       document.getElementById('duration-value').textContent = `${this.minutes} minutes`;
       
-      // If we have a marker on the map, update the isochrone
       if (this.marker.getLngLat()) {
         this.getIso();
       }
     });
   },
   
-  // Handle feature selection
   handleFeatureSelection(feature) {
     let coordinates;
     
-    // Get coordinates based on feature type
     if (feature.geometry.type === 'Point') {
       coordinates = feature.geometry.coordinates;
     } else if (feature.geometry.type === 'Polygon') {
-      // Calculate center of polygon
       const polygonCoords = feature.geometry.coordinates[0];
       let sumLng = 0, sumLat = 0;
       
@@ -111,222 +173,141 @@ const SimpleIsochrone = {
       ];
     }
     
-    // Update marker position
     this.marker.setLngLat(coordinates).addTo(this.map);
     
-    // Update status message with feature name
     const featureName = feature.properties.name || `Feature #${feature.properties.id}`;
     const statusElement = document.getElementById('isochrone-status');
     if (statusElement) {
       statusElement.textContent = `Selected: ${featureName}`;
     }
 
-    // Generate isochrone
     this.getIso();
   },
   
-  // Get isochrone from Mapbox API
   async getIso() {
-    try {
-      const lngLat = this.marker.getLngLat();
-      const urlBase = 'https://api.mapbox.com/isochrone/v1/mapbox/';
+    const lngLat = this.marker.getLngLat();
+    const urlBase = 'https://api.mapbox.com/isochrone/v1/mapbox/';
+    const url = `${urlBase}${this.profile}/${lngLat.lng},${lngLat.lat}?contours_minutes=${this.minutes}&denoise=0.2&polygons=true&access_token=${mapboxgl.accessToken}`;
+    
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (this.map.getSource('iso')) {
+      this.map.getSource('iso').setData(data);
       
-      // Construct the API URL
-      const url = `${urlBase}${this.profile}/${lngLat.lng},${lngLat.lat}?contours_minutes=${this.minutes}&denoise=0.2&polygons=true&access_token=${mapboxgl.accessToken}`;
-      
-      // Fetch the isochrone data
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      // Check if the source exists before setting data
-      if (this.map.getSource('iso')) {
-        this.map.getSource('iso').setData(data);
-        
-        // After updating the isochrone, analyze datazones within it
-        if (data.features && data.features.length > 0) {
-          this.analyzeDatazonesWithinIsochrone(data.features[0]);
-        }
-      } else {
-        console.warn('Isochrone source not found. Make sure the map is fully loaded.');
+      if (data.features && data.features.length > 0) {
+        this.analyzeDatazonesWithinIsochrone(data.features[0]);
       }
-    } catch (error) {
-      console.error('Error generating isochrone:', error);
     }
   },
   
-  // Analyze datazones within the isochrone boundary
   analyzeDatazonesWithinIsochrone(isochroneFeature) {
-    try {
-      // Get the datazones source
-      const datazonesSource = this.map.getSource('datazones');
-      if (!datazonesSource) {
-        console.warn('Datazones source not found');
-        return;
-      }
+    const datazonesSource = this.map.getSource('datazones');
+    if (!datazonesSource) return;
+    
+    const datazones = this.map.querySourceFeatures('datazones');
+    if (!datazones || datazones.length === 0) return;
+    
+    this.datazonesWithinIsochrone = [];
+    
+    const isochronePolygon = isochroneFeature.geometry.coordinates[0];
+    if (!isochronePolygon || !Array.isArray(isochronePolygon)) return;
+    
+    const datazonesWithin = datazones.filter(datazone => {
+      if (!datazone || !datazone.geometry || !datazone.geometry.coordinates) return false;
       
-      // Get the datazones data
-      const datazones = this.map.querySourceFeatures('datazones');
-      if (!datazones || datazones.length === 0) {
-        console.warn('No datazones found in source');
-        return;
-      }
+      const centroid = this.calculateCentroid(datazone);
+      if (!centroid) return false;
       
-      // Reset the datazones within isochrone
-      this.datazonesWithinIsochrone = [];
-      
-      // Get the isochrone polygon coordinates
-      const isochronePolygon = isochroneFeature.geometry.coordinates[0];
-      if (!isochronePolygon || !Array.isArray(isochronePolygon)) {
-        console.warn('Invalid isochrone polygon geometry');
-        return;
-      }
-      
-      // Filter datazones whose centroids are within the isochrone
-      const datazonesWithin = datazones.filter(datazone => {
-        // Skip invalid features
-        if (!datazone || !datazone.geometry || !datazone.geometry.coordinates) {
-          return false;
-        }
-        
-        // Calculate centroid of the datazone
-        const centroid = this.calculateCentroid(datazone);
-        
-        // Skip if centroid calculation failed
-        if (!centroid) {
-          return false;
-        }
-        
-        // Check if the centroid is within the isochrone polygon
-        return this.pointInPolygon(centroid, isochronePolygon);
+      return this.pointInPolygon(centroid, isochronePolygon);
+    });
+    
+    this.datazonesWithinIsochrone = datazonesWithin;
+    
+    if (this.map.getSource('datazones-within')) {
+      this.map.getSource('datazones-within').setData({
+        type: 'FeatureCollection',
+        features: datazonesWithin
       });
-      
-      // Store the datazones within the isochrone
-      this.datazonesWithinIsochrone = datazonesWithin;
-      
-      // Update the datazones-within source
-      if (this.map.getSource('datazones-within')) {
-        this.map.getSource('datazones-within').setData({
-          type: 'FeatureCollection',
-          features: datazonesWithin
-        });
-      }
-      
-      // Calculate and display statistics
-      this.calculateDatazoneStatistics();
-    } catch (error) {
-      console.error('Error analyzing datazones:', error);
-      this.updateStatisticsDisplay('Error analyzing datazones within walking distance');
     }
+    
+    this.calculateDatazoneStatistics();
   },
   
-  // Calculate centroid of a GeoJSON feature
   calculateCentroid(feature) {
-    try {
-      // Check if feature has valid geometry
-      if (!feature || !feature.geometry || feature.geometry.type !== 'Polygon') {
-        return null;
+    if (!feature || !feature.geometry || feature.geometry.type !== 'Polygon') return null;
+    
+    const coordinates = feature.geometry.coordinates[0];
+    if (!coordinates || !Array.isArray(coordinates) || coordinates.length === 0) return null;
+    
+    let sumX = 0, sumY = 0;
+    
+    coordinates.forEach(coord => {
+      if (Array.isArray(coord) && coord.length >= 2) {
+        sumX += coord[0];
+        sumY += coord[1];
       }
-      
-      // Check if coordinates array exists and has elements
-      const coordinates = feature.geometry.coordinates[0];
-      if (!coordinates || !Array.isArray(coordinates) || coordinates.length === 0) {
-        return null;
-      }
-      
-      let sumX = 0;
-      let sumY = 0;
-      
-      coordinates.forEach(coord => {
-        if (Array.isArray(coord) && coord.length >= 2) {
-          sumX += coord[0];
-          sumY += coord[1];
-        }
-      });
-      
-      if (coordinates.length > 0) {
-        return [sumX / coordinates.length, sumY / coordinates.length];
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('Error calculating centroid:', error);
-      return null;
+    });
+    
+    if (coordinates.length > 0) {
+      return [sumX / coordinates.length, sumY / coordinates.length];
     }
+    
+    return null;
   },
   
-  // Check if a point is inside a polygon using ray casting algorithm
   pointInPolygon(point, polygon) {
-    try {
-      // Validate inputs
-      if (!point || !Array.isArray(point) || point.length < 2) {
-        return false;
+    if (!point || !Array.isArray(point) || point.length < 2) return false;
+    if (!polygon || !Array.isArray(polygon) || polygon.length < 3) return false;
+    
+    let inside = false;
+    const x = point[0];
+    const y = point[1];
+    
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      if (!polygon[i] || !polygon[j] || 
+          !Array.isArray(polygon[i]) || !Array.isArray(polygon[j]) ||
+          polygon[i].length < 2 || polygon[j].length < 2) {
+        continue;
       }
       
-      if (!polygon || !Array.isArray(polygon) || polygon.length < 3) {
-        return false;
-      }
+      const xi = polygon[i][0];
+      const yi = polygon[i][1];
+      const xj = polygon[j][0];
+      const yj = polygon[j][1];
       
-      // Ray casting algorithm
-      let inside = false;
-      const x = point[0];
-      const y = point[1];
+      const intersect = ((yi > y) !== (yj > y)) && 
+                        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
       
-      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        // Ensure polygon points are valid
-        if (!polygon[i] || !polygon[j] || 
-            !Array.isArray(polygon[i]) || !Array.isArray(polygon[j]) ||
-            polygon[i].length < 2 || polygon[j].length < 2) {
-          continue;
-        }
-        
-        const xi = polygon[i][0];
-        const yi = polygon[i][1];
-        const xj = polygon[j][0];
-        const yj = polygon[j][1];
-        
-        const intersect = ((yi > y) !== (yj > y)) && 
-                          (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-        
-        if (intersect) inside = !inside;
-      }
-      
-      return inside;
-    } catch (error) {
-      console.error('Error in point-in-polygon test:', error);
-      return false;
+      if (intersect) inside = !inside;
     }
+    
+    return inside;
   },
   
-  // Calculate statistics from datazones within isochrone
   calculateDatazoneStatistics() {
     const zones = this.datazonesWithinIsochrone || [];
 
     if (!zones.length) {
-      this.updateStatisticsDisplay(
-        'No datazones found within this walking distance'
-      );
+      this.updateStatisticsDisplay('No datazones found within this walking distance');
       return;
     }
 
-    // 1) CONFIG: categories → list of metrics
     const categories = [
       {
         heading: 'Eradicating Child Poverty',
         metrics: [
           { key: 'HEALTH OUTCOMES',
             label: 'Health Outcomes',
-            format: (sum, count) =>
-              count > 0 ? (sum/count).toFixed(1) : 'N/A'
+            format: (sum, count) => count > 0 ? (sum/count).toFixed(1) + ' % of Population Prescribed Drugs for anxiety ' : 'N/A'
           },
           { key: 'CHILDREN IN FAMILIES WITH LIMITED RESOURCES',
             label: 'Children in Families with Limited Resources',
-            format: (sum, count) =>
-              count > 0 ? (sum/count).toFixed(1) : 'N/A'
+            format: (sum, count) => count > 0 ? (sum/count).toFixed(1) + ' % of Children ' : 'N/A'
           },
           { key: 'CHILD BENEFIT',
             label: 'Child Benefit',
-            format: (sum, count) =>
-              count > 0 ? sum.toFixed(0) : 'N/A'
+            format: (sum, count) => count > 0 ? sum.toFixed(0) + ' Children Count ' : 'N/A'
           },
         ]
       },
@@ -335,33 +316,27 @@ const SimpleIsochrone = {
         metrics: [
           { key: 'INDEX OF MULTIPLE DEPRIVATION',
             label: 'Income Indicators',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(1) : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(1) + ' % of People ' : 'N/A'
           },
           { key: 'BUSINESS DEMOGRAPHY',
             label: 'Business Demography (Survival)',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(2) : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(2) + ' Business Survival Rate ' : 'N/A'
           },
           { key: 'ECONOMIC ACTIVITY',
             label: 'Economic Activity / Inactivity',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(1) : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(1) + ' % of Population ' : 'N/A'
           },
           { key: 'HOUSE SALES PRICE',
             label: 'House Sale Prices',
-            format: (sum, count) =>
-              count>0 ? Math.round(sum/count).toLocaleString() : 'N/A'
+            format: (sum, count) => count>0 ? '£' + Math.round(sum/count).toLocaleString() : 'N/A'
           },
           { key: 'EARNINGS',
             label: 'Earnings',
-            format: (sum, count) =>
-              count>0 ? '£'+(sum/count).toFixed(0) : 'N/A'
+            format: (sum, count) => count>0 ? '£'+(sum/count).toFixed(0) : 'N/A'
           },
           { key: 'UNDEREMPLOYMENT',
             label: 'Underemployment',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(1)+'%' : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(1)+' % of People Employed ' : 'N/A'
           },
         ]
       },
@@ -370,23 +345,19 @@ const SimpleIsochrone = {
         metrics: [
           { key: 'CAR OWNERSHIP',
             label: 'Car Ownership',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(0)+'%' : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(0)+' % of Households ' : 'N/A'
           },
           { key: 'HOUSING QUALITY',
             label: 'Housing Quality',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(1) : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(1) + ' % of Dwellings ' : 'N/A'
           },
           { key: 'ENERGY CONSUMPTION',
             label: 'Energy Consumption',
-            format: (sum, count) =>
-              count>0 ? Math.round(sum/count).toLocaleString() : 'N/A'
+            format: (sum, count) => count>0 ? Math.round(sum/count).toLocaleString() + ' GWh ' : 'N/A'
           },
           { key: 'POPULATION ESTIMATES',
             label: 'Population Estimates',
-            format: (sum, count) =>
-              count>0 ? Math.round(sum).toLocaleString() : 'N/A'
+            format: (sum, count) => count>0 ? Math.round(sum).toLocaleString() + ' Population Count ' : 'N/A'
           },
         ]
       },
@@ -395,29 +366,24 @@ const SimpleIsochrone = {
         metrics: [
           { key: 'LOCAL SERVICE SATISFACTION',
             label: 'Local Service Satisfaction',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(1) : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(1) + ' % of Satisfied Adults ' : 'N/A'
           },
           { key: 'ACCESS TO PUBLIC TRANSPORT',
             label: 'Access to Public Transport',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(1) : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(1) + ' % of Satisfied Adults ' : 'N/A'
           },
           { key: 'BUS ACCESSIBILITY',
             label: 'Bus Accessibility',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(2) : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(2) + ' Count of Busses during Weekdays ' : 'N/A'
           },
           { key: 'GEOGRAPHIC ACCESS TO SERVICES INDICATOR',
             label: 'Geographic Access to Services',
-            format: (sum, count) =>
-              count>0 ? (sum/count).toFixed(1) : 'N/A'
+            format: (sum, count) => count>0 ? (sum/count).toFixed(1) + ' Travel time to GPs in Minutes ' : 'N/A'
           },
         ]
       }
     ];
 
-    // 2) INITIALIZE counters
     const stats = {};
     categories.forEach(cat =>
       cat.metrics.forEach(m => {
@@ -425,7 +391,6 @@ const SimpleIsochrone = {
       })
     );
 
-    // 3) AGGREGATE all zones in a single pass
     zones.forEach(zone => {
       const props = zone.properties || {};
       Object.keys(stats).forEach(key => {
@@ -437,31 +402,285 @@ const SimpleIsochrone = {
       });
     });
 
-    // 4) BUILD your HTML output
-    let html = `<strong>Datazones within ${this.minutes} min walk:</strong> ${zones.length}<br>`;
+    const scoreData = this.calculatePlotScores(zones, categories);
+    
+    let html = this.getResultsHTML(zones, this.minutes, stats, categories, scoreData);
 
-    categories.forEach(cat => {
-      html += `<br><h3>${cat.heading}</h3>`;
-      cat.metrics.forEach(m => {
-        const { total, count } = stats[m.key];
-        html += `<strong>${m.label}:</strong> ${m.format(total, count)}<br>`;
-      });
-    });
-
-    // 5) RENDER
     this.updateStatisticsDisplay(html);
   },
 
-  // Update the statistics display
-  updateStatisticsDisplay(html) {
-    try {
-      const statusElement = document.getElementById('isochrone-status');
-      if (statusElement) {
-        statusElement.innerHTML = html;
+  getResultsHTML(zones, minutes, stats, categories, scoreData) {
+    return `
+      <div class="isochrone-results">
+        <div class="summary-section">
+          <h2>Plot Analysis</h2>
+          <p><strong>${zones.length}</strong> datazones within ${minutes} min walk</p>
+        </div>
+        
+        <div class="score-section">
+          <h3>Plot Scores</h3>
+          <div class="total-score">
+            <div class="score-label">Overall Plot Score</div>
+            <div class="score-bar-container">
+              <div class="score-bar overall-score" style="width: ${scoreData.overallScore * 100}%"></div>
+              <div class="score-value">${(scoreData.overallScore * 100).toFixed(1)}%</div>
+            </div>
+          </div>
+          
+          <div class="category-scores-header">Category Scores:</div>
+          <div class="category-scores">
+            ${this.getCategoryScoresHTML(scoreData)}
+          </div>
+        </div>
+        
+        <div class="metrics-section">
+          <details>
+            <summary>View Detailed Metrics</summary>
+            <div class="metrics-content">
+              ${this.getCategoryDetailsHTML(categories, stats)}
+            </div>
+          </details>
+        </div>
+      </div>
+      
+      <style>
+        .isochrone-results {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          padding: 10px 0;
+        }
+        .summary-section {
+          margin-bottom: 20px;
+        }
+        .summary-section h2 {
+          margin-top: 0;
+          margin-bottom: 10px;
+          color: #333;
+        }
+        .score-section {
+          margin-bottom: 20px;
+        }
+        .score-section h3 {
+          margin-top: 0;
+          margin-bottom: 15px;
+          color: #333;
+        }
+        .total-score {
+          margin-bottom: 20px;
+          padding: 10px;
+          background-color: #f8f8f8;
+          border-radius: 8px;
+          border-left: 4px solid #6666CC;
+        }
+        .category-scores-header {
+          font-weight: 600;
+          margin-bottom: 10px;
+          color: #555;
+        }
+        .category-score {
+          margin-bottom: 12px;
+        }
+        .score-label {
+          font-weight: 500;
+          margin-bottom: 5px;
+        }
+        .score-bar-container {
+          height: 18px;
+          background-color: #f0f0f0;
+          border-radius: 12px;
+          overflow: hidden;
+          position: relative;
+        }
+        .score-bar {
+          height: 100%;
+          background-color: #6666CC;
+          border-radius: 12px;
+        }
+        .overall-score {
+          background-color: #6666CC;
+          background-size: 1rem 1rem;
+        }
+        .high-score {
+          background-color: #66FF99;
+        }
+        .medium-score {
+          background-color: #66FF99;
+        }
+        .low-score {
+          background-color: #FF725A;
+        }
+        .score-value {
+          position: absolute;
+          right: 10px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #333;
+          font-weight: bold;
+        }
+        .metrics-section {
+          border-top: 1px solid #eee;
+          padding-top: 15px;
+        }
+        details {
+          margin-bottom: 10px;
+        }
+        summary {
+          cursor: pointer;
+          font-weight: 500;
+          padding: 8px 0;
+        }
+        summary:hover {
+          color: #6666CC;
+        }
+        .category-details {
+          margin-left: 15px;
+          border-left: 2px solid #eee;
+          padding-left: 10px;
+        }
+        .metrics-list {
+          margin-left: 15px;
+          margin-top: 8px;
+          margin-bottom: 15px;
+        }
+        .metrics-list div {
+          margin-bottom: 5px;
+          font-size: 0.9em;
+        }
+      </style>
+    `;
+  },
+  
+  getCategoryScoresHTML(scoreData) {
+    let html = '';
+    
+    Object.keys(scoreData.categoryScores).forEach(key => {
+      const category = scoreData.categoryScores[key];
+      if (category.count > 0) {
+        const categoryName = key.replace(/_/g, ' ');
+        const scorePercentage = (category.score * 100).toFixed(1);
+        
+        let colorClass = 'medium-score';
+        if (category.score >= 0.7) colorClass = 'high-score';
+        if (category.score < 0.4) colorClass = 'low-score';
+        
+        html += `
+          <div class="category-score">
+            <div class="score-label">${categoryName}</div>
+            <div class="score-bar-container">
+              <div class="score-bar ${colorClass}" style="width: ${scorePercentage}%"></div>
+              <div class="score-value">${scorePercentage}%</div>
+            </div>
+          </div>
+        `;
       }
-    } catch (error) {
-      console.error('Error updating statistics display:', error);
+    });
+    
+    return html;
+  },
+  
+  getCategoryDetailsHTML(categories, stats) {
+    let html = '';
+    
+    categories.forEach(cat => {
+      html += `
+        <details class="category-details">
+          <summary>${cat.heading}</summary>
+          <div class="metrics-list">
+      `;
+      
+      cat.metrics.forEach(m => {
+        const { total, count } = stats[m.key];
+        html += `<div><strong>${m.label}:</strong> ${m.format(total, count)}</div>`;
+      });
+      
+      html += `
+          </div>
+        </details>
+      `;
+    });
+    
+    return html;
+  },
+
+  updateStatisticsDisplay(html) {
+    const statusElement = document.getElementById('isochrone-status');
+    if (statusElement) {
+      statusElement.innerHTML = html;
     }
+  },
+  
+  calculatePlotScores(zones, categories) {
+    if (!zones.length) {
+      return {
+        overallScore: 0,
+        categoryScores: {}
+      };
+    }
+    
+    const negativeImpactMetrics = [
+      'norm_CHILDREN IN FAMILIES WITH LIMITED RESOURCES',
+      'norm_INDEX OF MULTIPLE DEPRIVATION',
+      'norm_ENERGY CONSUMPTION',
+      'norm_CHILD BENEFIT',
+      'norm_HEALTH OUTCOMES',
+      'norm_GEOGRAPHIC ACCESS TO SERVICES INDICATOR',
+    ];
+    
+    const categoryScores = {};
+    let totalScore = 0;
+    let totalMetricsCount = 0;
+    
+    categories.forEach(category => {
+      const categoryKey = category.heading.replace(/\s+/g, '_');
+      categoryScores[categoryKey] = {
+        score: 0,
+        count: 0,
+        metrics: []
+      };
+      
+      category.metrics.forEach(metric => {
+        const normKey = `norm_${metric.key}`;
+        let metricSum = 0;
+        let metricCount = 0;
+        
+        zones.forEach(zone => {
+          const props = zone.properties || {};
+          const normValue = parseFloat(props[normKey]);
+          
+          if (!isNaN(normValue)) {
+            metricSum += normValue;
+            metricCount++;
+          }
+        });
+        
+        if (metricCount > 0) {
+          const avgValue = metricSum / metricCount;
+          const isNegative = negativeImpactMetrics.includes(normKey);
+          const metricScore = isNegative ? (1 - avgValue) : avgValue;
+          
+          categoryScores[categoryKey].score += metricScore;
+          categoryScores[categoryKey].count++;
+          categoryScores[categoryKey].metrics.push({
+            name: metric.label,
+            score: metricScore,
+            isNegative
+          });
+          
+          totalScore += metricScore;
+          totalMetricsCount++;
+        }
+      });
+      
+      if (categoryScores[categoryKey].count > 0) {
+        categoryScores[categoryKey].score = categoryScores[categoryKey].score / categoryScores[categoryKey].count;
+      }
+    });
+    
+    const overallScore = totalMetricsCount > 0 ? totalScore / totalMetricsCount : 0;
+    
+    return {
+      overallScore,
+      categoryScores
+    };
   }
 };
 

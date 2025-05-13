@@ -17,30 +17,6 @@
 <body>
     <div id="map"></div>
     
-    <!-- Isochrone Controls Sidebar -->
-    <div id="isochrone-sidebar" class="sidebar">
-        <form id="params">
-            <h3>Walking Distance</h3>
-            
-            <div class="duration-display">
-                <span>Walking time: <strong id="duration-value">15 minutes</strong></span>
-            </div>
-            
-            <div class="slider-container">
-                <span>5m</span>
-                <input type="range" id="duration-slider" min="5" max="30" step="5" value="15">
-                <span>30m</span>
-            </div>
-            
-            <div class="statistics-container">
-                <h4>Area Statistics</h4>
-                <div id="isochrone-status" class="status-message">
-                    Click on a feature to see walking distance
-                </div>
-            </div>
-        </form>
-    </div>
-    
     <!-- Scripts -->
     <script type="module" src="map.js"></script>
 </body>

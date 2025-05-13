@@ -1,24 +1,40 @@
 // Define the bounding zone as a string in the format needed by Overpass API
-const osm_bounding_zone = "(55.8,-4.4,55.9,-4.1)";
+const osm_bounding_zone = "(55.5,-4.8,56.0,-2.8)";
 
 async function fetch_empty_landsData() {
+
     // Query for empty lands in Glasgow area
     const overpassQuery = `
-        [out:json];
-        (
-            // Railway-related lands
-            way["railway"]["disused"="yes"]${osm_bounding_zone};
-            way["landuse"="railway"]${osm_bounding_zone};
-            
-            // Brownfield and vacant lands
-            way["landuse"="brownfield"]${osm_bounding_zone};
-            way["landuse"="vacant"]${osm_bounding_zone};
-            
-            // Network Rail properties
-            way["operator"~"Network Rail|network rail"]${osm_bounding_zone};
-            way["owner"~"Network Rail|network rail"]${osm_bounding_zone};
-        );
-        out geom;
+    [out:json];
+    (
+    // Railway-related and disused/abandoned lands
+    way["railway"]["disused"="yes"]${osm_bounding_zone};
+    way["landuse"="railway"]${osm_bounding_zone};
+    way["disused"="yes"]${osm_bounding_zone};
+    way["abandoned"="yes"]${osm_bounding_zone};
+    way["abandoned:landuse"]${osm_bounding_zone};
+    way["disused:landuse"]${osm_bounding_zone};
+
+    // Brownfield, greenfield, vacant, construction, landfill, etc.
+    way["landuse"~"brownfield|greenfield|vacant|construction|landfill"]${osm_bounding_zone};
+    way["brownfield"="yes"]${osm_bounding_zone};
+    way["vacant"="yes"]${osm_bounding_zone};
+
+    // Other possibly empty/unused lands
+    // way["landuse"~"industrial|military|recreation_ground|allotments|cemetery"]${osm_bounding_zone};
+    // way["leisure"="park"]${osm_bounding_zone};
+    // way["amenity"="parking"]${osm_bounding_zone};
+    // way["surface"="unpaved"]${osm_bounding_zone};
+
+    // Network Rail properties
+    // way["operator"~"Network Rail|network rail"]${osm_bounding_zone};
+    // way["owner"~"Network Rail|network rail"]${osm_bounding_zone};
+
+    // Also search for nodes and relations
+    // node["landuse"~"brownfield|greenfield|vacant|construction|landfill"]${osm_bounding_zone};
+    // relation["landuse"~"brownfield|greenfield|vacant|construction|landfill"]${osm_bounding_zone};
+    );
+    out geom;
     `;
     
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
@@ -50,7 +66,7 @@ async function fetch_railway_stations() {
 async function fetch_datazones() {
     try {
         // Path to the GeoJSON file
-        const filePath = './00-data/geojson/datazones2011_data.geojson';
+        const filePath = './00-data/geojson/datazones2011_data_normalized.geojson';
         
         // Fetch the file
         const response = await fetch(filePath);
