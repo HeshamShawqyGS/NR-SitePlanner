@@ -3,21 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Glasgow Data Zones with Isochrones, Empty Lands and Railway Stations</title>
+    <title>NR-Site Fit - Glasgow Site Planner</title>
     
-    <!-- Mapbox GL JS -->
-    <link href="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.css" rel="stylesheet">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v3.10.0/mapbox-gl.js"></script>
-    <script src="https://npmcdn.com/@turf/turf/turf.min.js"></script>
-    <!-- Add Roboto font from Google Fonts -->
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <!-- Custom styles -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="landing.css">
+    
+
 </head>
 <body>
-    <div id="map"></div>
-    
-    <!-- Scripts -->
-    <script type="module" src="map.js"></script>
+    <div class="container">
+        <header>
+            <div class="logo-container">
+                <img src="00-data/assets/DT_Logo.png" alt="DT Logo" class="logo">
+                <h1>NR-Site Fit</h1>
+            </div>
+            <p class="subtitle">Glasgow Site Planning & Analysis Tool</p>
+        </header>
+        
+        <main>
+            <div class="map-options">
+                <div class="map-option">
+                    <img src="00-data/assets/dynamic-map-preview.jpg" alt="Dynamic Map Preview" class="map-image" >
+                    <h2>Dynamic Analysis</h2>
+                    <p>Interactive map with on-demand isochrone generation and real-time site analysis. Select any location to calculate walking distances and site scores.</p>
+                    <a href="dynamic-map.html" class="btn">Launch Dynamic Map</a>
+                </div>
+                
+                <div class="map-option">
+                    <img src="00-data/assets/static-map-preview.jpg" alt="Static Map Preview" class="map-image" >
+                    <h2>Pre-calculated Sites</h2>
+                    <p>View all empty lands with pre-calculated site scores. Faster loading and optimized for exploring multiple potential development sites at once.</p>
+                    <a href="static-map.html" class="btn">Launch Static Map</a>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; 2023 NR-Site Fit | Glasgow Site Planning Tool</p>
+        </footer>
+    </div>
 </body>
 </html>

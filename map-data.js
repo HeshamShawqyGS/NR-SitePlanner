@@ -20,19 +20,13 @@ async function fetch_empty_landsData() {
     way["brownfield"="yes"]${osm_bounding_zone};
     way["vacant"="yes"]${osm_bounding_zone};
 
-    // Other possibly empty/unused lands
-    // way["landuse"~"industrial|military|recreation_ground|allotments|cemetery"]${osm_bounding_zone};
-    // way["leisure"="park"]${osm_bounding_zone};
-    // way["amenity"="parking"]${osm_bounding_zone};
-    // way["surface"="unpaved"]${osm_bounding_zone};
-
     // Network Rail properties
-    // way["operator"~"Network Rail|network rail"]${osm_bounding_zone};
-    // way["owner"~"Network Rail|network rail"]${osm_bounding_zone};
+    way["operator"~"Network Rail|network rail"]${osm_bounding_zone};
+    way["owner"~"Network Rail|network rail"]${osm_bounding_zone};
 
     // Also search for nodes and relations
-    // node["landuse"~"brownfield|greenfield|vacant|construction|landfill"]${osm_bounding_zone};
-    // relation["landuse"~"brownfield|greenfield|vacant|construction|landfill"]${osm_bounding_zone};
+    node["landuse"~"brownfield|greenfield|vacant|construction|landfill"]${osm_bounding_zone};
+    relation["landuse"~"brownfield|greenfield|vacant|construction|landfill"]${osm_bounding_zone};
     );
     out geom;
     `;

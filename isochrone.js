@@ -1,4 +1,6 @@
 // Simple Isochrone Handler
+import SidebarModule from './sidebar-module.js';
+
 const SimpleIsochrone = {
   profile: 'walking',
   minutes: 15,
@@ -9,8 +11,23 @@ const SimpleIsochrone = {
     this.map = map;
     this.marker = new mapboxgl.Marker({ color: '#6666CC' });
     
-    // Create and inject the sidebar HTML
-    this.createSidebar();
+    // Initialize the sidebar using the new module
+    this.sidebar = SidebarModule.init({
+      id: 'isochrone-sidebar',
+      title: 'Network Rail Site Fit',
+      logoPath: '00-data/assets/DT_Logo.png',
+      defaultMessage: 'Click on a plot to get the plot score.',
+      hasControls: true,
+      minDuration: 5,
+      maxDuration: 30,
+      defaultDuration: 15,
+      onDurationChange: (minutes) => {
+        this.minutes = minutes;
+        if (this.marker.getLngLat()) {
+          this.getIso();
+        }
+      }
+    });
     
     if (map.loaded()) {
       this.setupMapLayers();
@@ -18,53 +35,8 @@ const SimpleIsochrone = {
       map.on('load', () => this.setupMapLayers());
     }
     
-    this.setupEventListeners();
     return this;
   },
-  
-  createSidebar() {
-    // Check if sidebar already exists
-    let sidebar = document.getElementById('isochrone-sidebar');
-    
-    if (!sidebar) {
-      // Create the sidebar element
-      sidebar = document.createElement('div');
-      sidebar.id = 'isochrone-sidebar';
-      sidebar.className = 'sidebar';
-      
-      // Set the HTML content - using the same style as the results HTML
-      sidebar.innerHTML = this.getSidebarHTML();
-      
-      // Append to the document body or a specific container
-      document.body.appendChild(sidebar);
-    }
-  },
-  
-  getSidebarHTML() {
-    return `
-      <div class="isochrone-branding">
-        <span class="isochrone-title">Network Rail Site Fit</span>
-        <img src="00-data/assets/DT_Logo.png" alt="DT Logo" class="isochrone-logo" />
-      </div>
-      <div class="isochrone-container">
-        <div class="isochrone-controls">
-          <div class="duration-display">
-            <span>Walking time: <strong id="duration-value">15 minutes</strong></span>
-          </div>
-          <div class="slider-container">
-            <span>5m</span>
-            <input type="range" id="duration-slider" min="5" max="30" step="5" value="15">
-            <span>30m</span>
-          </div>
-        </div>
-        <div id="isochrone-area" class="area-message"></div>
-        <div id="isochrone-status" class="status-message">
-          Click on a plot to get the plot score.
-        </div>
-      </div>
-    `;
-  },
-
   
   setupMapLayers() {
     this.map.addSource('iso', {
@@ -90,26 +62,10 @@ const SimpleIsochrone = {
       layout: {},
       paint: {
         'line-color': '#FF725A',
-        'line-width':2,
+        'line-width': 2,
       }
     });
   },
-  
-
-  setupEventListeners() {
-    const slider = document.getElementById('duration-slider');
-    
-    slider.addEventListener('input', (event) => {
-      this.minutes = parseInt(event.target.value);
-      document.getElementById('duration-value').textContent = `${this.minutes} minutes`;
-      
-      if (this.marker.getLngLat()) {
-        this.getIso();
-      }
-    });
-  },
-  
-
   
   handleFeatureSelection(feature) {
     let coordinates;
@@ -132,50 +88,17 @@ const SimpleIsochrone = {
     }
 
     this.marker.setLngLat(coordinates).addTo(this.map);
-
-    const featureName = feature.properties.name || `Feature #${feature.properties.id}`;
-    const statusElement = document.getElementById('isochrone-status');
-    if (statusElement) {
-      statusElement.textContent = `Selected: ${featureName}`;
-    }
-
-    // Calculate area if not present
-    let area = feature.properties.area;
-    if (
-      (typeof area === 'undefined' || area === null || isNaN(area)) &&
-      feature.geometry.type === 'Polygon'
-    ) {
-      // Use Turf.js to calculate area in square meters
-      area = turf.area(feature);
-      // Optionally, you can set it back to the feature for future use:
-      // feature.properties.area = area;
-    }
-
-    // Debug: log the area
-    console.log('Calculated area (sqm):', area);
-
-  const areaElement = document.getElementById('isochrone-area');
-  if (areaElement) {
-    if (typeof area !== 'undefined' && area !== null && !isNaN(area)) {
-      let areaText = '';
-      if (area > 10000) {
-        areaText = `${Math.round(area / 10000)} ha`;
-      } else {
-        areaText = `${Math.round(area).toLocaleString()} m²`;
-      }
-      areaElement.innerHTML = `<strong>Area:</strong> ${areaText}`;
-    } else {
-      areaElement.innerHTML = '';
-      console.log('Area property is missing or invalid for this feature.');
-    }
-  }
+    
+    // Display feature info using the sidebar module
+    this.sidebar.displayFeatureInfo(feature);
 
     this.getIso();
   },
+  
   async getIso() {
     const lngLat = this.marker.getLngLat();
     const urlBase = 'https://api.mapbox.com/isochrone/v1/mapbox/';
-    const url = `${urlBase}${this.profile}/${lngLat.lng},${lngLat.lat}?contours_minutes=${this.minutes}&denoise=0.2&polygons=true&access_token=${mapboxgl.accessToken}`;
+    const url = `${urlBase}${this.profile}/${lngLat.lng},${lngLat.lat}?contours_minutes=${this.minutes}&generalize=20&denoise=0.2&polygons=true&access_token=${mapboxgl.accessToken}`;
     
     const response = await fetch(url);
     const data = await response.json();
@@ -277,7 +200,7 @@ const SimpleIsochrone = {
     const zones = this.datazonesWithinIsochrone || [];
 
     if (!zones.length) {
-      this.updateStatisticsDisplay('No datazones found within this walking distance');
+      this.sidebar.updateStatus('No datazones found within this walking distance');
       return;
     }
 
@@ -391,104 +314,11 @@ const SimpleIsochrone = {
     });
 
     const scoreData = this.calculatePlotScores(zones, categories);
+    scoreData.minutes = this.minutes;
+    scoreData.datazonesCount = zones.length;
     
-    let html = this.getResultsHTML(zones, this.minutes, stats, categories, scoreData);
-
-    this.updateStatisticsDisplay(html);
-  },
-
-  getResultsHTML(zones, minutes, stats, categories, scoreData) {
-    return `
-      <div class="isochrone-results">
-        <div class="summary-section">
-          <h2>Plot Analysis</h2>
-          <p><strong>${zones.length}</strong> datazones within ${minutes} min walk</p>
-        </div>
-        <div class="score-section">
-          <h3>Plot Scores</h3>
-          <div class="total-score">
-            <div class="score-label">Overall Plot Score</div>
-            <div class="score-bar-container">
-              <div class="score-bar overall-score" style="width: ${scoreData.overallScore * 100}%"></div>
-              <div class="score-value">${(scoreData.overallScore * 100).toFixed(1)}%</div>
-            </div>
-          </div>
-          
-          <div class="category-scores-header">Category Scores:</div>
-          <div class="category-scores">
-            ${this.getCategoryScoresHTML(scoreData)}
-          </div>
-        </div>
-        
-        <div class="metrics-section">
-          <details>
-            <summary>View Detailed Metrics</summary>
-            <div class="metrics-content">
-              ${this.getCategoryDetailsHTML(categories, stats)}
-            </div>
-          </details>
-        </div>
-      </div>
-    `;
-  },
-  
-  getCategoryScoresHTML(scoreData) {
-    let html = '';
-    
-    Object.keys(scoreData.categoryScores).forEach(key => {
-      const category = scoreData.categoryScores[key];
-      if (category.count > 0) {
-        const categoryName = key.replace(/_/g, ' ');
-        const scorePercentage = (category.score * 100).toFixed(1);
-        
-        let colorClass = 'medium-score';
-        if (category.score >= 0.7) colorClass = 'high-score';
-        if (category.score < 0.4) colorClass = 'low-score';
-        
-        html += `
-          <div class="category-score">
-            <div class="score-label">${categoryName}</div>
-            <div class="score-bar-container">
-              <div class="score-bar ${colorClass}" style="width: ${scorePercentage}%"></div>
-              <div class="score-value">${scorePercentage}%</div>
-            </div>
-          </div>
-        `;
-      }
-    });
-    
-    return html;
-  },
-  
-  getCategoryDetailsHTML(categories, stats) {
-    let html = '';
-    
-    categories.forEach(cat => {
-      html += `
-        <details class="category-details">
-          <summary>${cat.heading}</summary>
-          <div class="metrics-list">
-      `;
-      
-      cat.metrics.forEach(m => {
-        const { total, count } = stats[m.key];
-        html += `<div><strong>${m.label}:</strong> ${m.format(total, count)}</div>`;
-      });
-      
-      html += `
-          </div>
-        </details>
-      `;
-    });
-    
-    return html;
-  },
-
-  updateStatisticsDisplay(html) {
-    const statusElement = document.getElementById('isochrone-status');
-    if (statusElement) {
-      statusElement.innerHTML = html;
-    }
+    // Use the sidebar module to display the results
+    this.sidebar.displayPlotScores(scoreData);
   },
   
   calculatePlotScores(zones, categories) {
@@ -545,7 +375,8 @@ const SimpleIsochrone = {
           categoryScores[categoryKey].metrics.push({
             name: metric.label,
             score: metricScore,
-            isNegative
+            isNegative,
+            rawValue: metricSum / metricCount
           });
           
           totalScore += metricScore;
